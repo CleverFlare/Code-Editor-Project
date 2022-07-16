@@ -1,5 +1,6 @@
 const codeArea = document.querySelector("[data-code-area]");
 const lineNumbersList = document.querySelector("[data-line-numbering]");
+const boundary = document.querySelector("[data-code-wrapper]");
 const caret = document.querySelector("[data-caret]");
 const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
@@ -9,24 +10,66 @@ let column = 0;
 let caretHorizontalPosition = 0;
 let caretVarticalPosition = 0;
 let characterWidth;
+let mouseClicked = false;
+let selection = null;
 
-ctx.font = "monospace";
-console.log(ctx.measureText("m"));
+class SelectionContext {
+  constructor(codeArea, offsetX, offsetY, lines) {
+    this.offsetX = offsetX;
+    this.offsetY = offsetY;
+    this.codeArea = codeArea;
+    this.column = 0;
+    this.row = 0;
+    let cavans = document.createElement("canvas");
+    let ctx = cavans.getContext("2d");
+    ctx.font = "16px monospace";
+    this.lines = lines;
+    this.caret = document.createElement("div");
+    this.caret.setAttribute("data-caret", "");
+    this.codeArea.appendChild(this.caret);
+    this.wordWidth = 0;
+    this.type();
+  }
 
-const letterMatricsElement = document.createElement("p");
-letterMatricsElement.style.position = "absolute";
-letterMatricsElement.style.top = "0px";
-letterMatricsElement.style.left = "0px";
-letterMatricsElement.style.whiteSpace = "pre";
-letterMatricsElement.style.opacity = "0";
-letterMatricsElement.style.pointerEvents = "none";
-letterMatricsElement.style.font = "1rem monospace";
-letterMatricsElement.style.width = "max-content";
-document.body.appendChild(letterMatricsElement);
+  type() {
+    this.wordWidth = ctx.measureText(this.lines[this.column]).width;
+    this.row = this.wordWidth;
+    this.caret.style.transform = `translate(${this.row}px, ${this.column}px)`;
+  }
+
+  back(value) {
+    this.row = this.wordWidth - value;
+    this.wordWidth = ctx.measureText(
+      this.lines[this.column].slice(0, this.row)
+    ).width;
+    this.caret.style.transform = `translate(${this.row}px, ${this.column}px)`;
+  }
+
+  forward(value) {
+    this.row = this.wordWidth + value;
+    this.wordWidth = ctx.measureText(
+      this.lines[this.column].slice(0, this.row)
+    ).width;
+    this.caret.style.transform = `translate(${this.row}px, ${this.column}px)`;
+  }
+}
+
+let newCaret = new SelectionContext(boundary, 0, 0, lines);
+
+const measurementElement = document.createElement("p");
+measurementElement.style.position = "absolute";
+measurementElement.style.top = "0px";
+measurementElement.style.left = "0px";
+measurementElement.style.whiteSpace = "pre";
+measurementElement.style.opacity = "0";
+measurementElement.style.pointerEvents = "none";
+measurementElement.style.font = "1rem monospace";
+measurementElement.style.width = "max-content";
+document.body.appendChild(measurementElement);
 
 const syncCaretPosition = () => {
-  letterMatricsElement.innerHTML = lines[column].slice(0, row);
-  characterWidth = parseFloat(getComputedStyle(letterMatricsElement).width);
+  measurementElement.innerHTML = lines[column].slice(0, row);
+  characterWidth = parseFloat(getComputedStyle(measurementElement).width);
   caretHorizontalPosition = characterWidth;
   caretVarticalPosition = 25 * column;
   caret.style.transform = `translate(${caretHorizontalPosition}px, ${caretVarticalPosition}px)`;
@@ -172,6 +215,7 @@ codeArea.addEventListener("keydown", (event) => {
             caretHorizontalMovement("=>");
           } else {
             caretHorizontalMovement("-");
+            newCaret.back(1);
           }
           break;
         case "ArrowRight":
@@ -180,6 +224,7 @@ codeArea.addEventListener("keydown", (event) => {
             caretHorizontalMovement("<=");
           } else {
             caretHorizontalMovement("+");
+            newCaret.forward(1);
           }
           break;
         case "ArrowUp":
@@ -215,7 +260,6 @@ codeArea.addEventListener("keydown", (event) => {
       lines[column].substring(0, row) +
       lines[column].substring(row + 1, lines[column].length);
   } else if (key === "Tab") {
-    // event.preventDefault();
     lines[column] =
       lines[column].substring(0, row) +
       "\t" +
@@ -234,12 +278,72 @@ codeArea.addEventListener("keydown", (event) => {
   originateLines();
   originateLineNumbers();
   detectActiveLine();
+  console.log(newCaret);
 });
 
 originateLines();
 
+Math.lowestIsZero = (value) => {
+  if (value < 0) return 0;
+  return value;
+};
+
 codeArea.addEventListener("mousedown", (event) => {
-  const { offsetY } = event;
+  mouseClicked = true;
+  const { offsetY, offsetX } = event;
+  caretVarticalMovementOnMouseClick(offsetY);
+  caretHorizontalMovementOnMouseClick(offsetX);
+  selection = null;
+  selection = {
+    start: offsetX,
+    end: offsetX,
+  };
+  const selectionElement = document.createElement("span");
+  selectionElement.setAttribute("data-selection", "");
+  boundary.appendChild(selectionElement);
+
+  codeArea.addEventListener("mousemove", (event) => {
+    if (mouseClicked) {
+      const { offsetY, offsetX } = event;
+      caretVarticalMovementOnMouseClick(offsetY);
+      caretHorizontalMovementOnMouseClick(offsetX);
+      let startSteps = lines[column].length;
+      let endSteps = lines[column].length;
+      let startWidth = 0;
+      let endWidth = 0;
+      selection.end = offsetX;
+      for (let index = 0; index < lines[column].length; index++) {
+        startSteps = lines[column].length - index;
+        measurementElement.innerHTML = lines[column].slice(0, startSteps);
+        if (
+          measurementElement.getBoundingClientRect().width <= selection.start
+        ) {
+          startWidth = measurementElement.getBoundingClientRect().width;
+          break;
+        }
+      }
+      for (let index = 0; index < lines[column].length; index++) {
+        endSteps = lines[column].length - index;
+        measurementElement.innerHTML = lines[column].slice(0, endSteps);
+        if (measurementElement.getBoundingClientRect().width <= selection.end) {
+          endWidth = measurementElement.getBoundingClientRect().width;
+          break;
+        }
+      }
+      selectionElement.style.width = startWidth - endWidth + "px";
+      selectionElement.style.transform = `translateX(${endWidth}px)`;
+    }
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (selection.start === selection.end) {
+      selectionElement.remove();
+    }
+    mouseClicked = false;
+  });
+});
+
+const caretVarticalMovementOnMouseClick = (offsetY) => {
   if (offsetY > caret.getBoundingClientRect().y) {
     const formula = Math.floor(
       (offsetY - caret.getBoundingClientRect().y) / 25
@@ -252,4 +356,25 @@ codeArea.addEventListener("mousedown", (event) => {
   originateLines();
   originateLineNumbers();
   detectActiveLine();
-});
+};
+
+const caretHorizontalMovementOnMouseClick = (offsetX) => {
+  measurementElement.innerHTML = lines[column];
+  const measuredWidth = measurementElement.getBoundingClientRect().width;
+  if (measuredWidth > offsetX) {
+    let steps = lines[column].length;
+
+    for (let index = 0; index < lines[column].length + 1; index++) {
+      steps = lines[column].length - index;
+      measurementElement.innerHTML = lines[column].slice(0, steps);
+      if (measurementElement.getBoundingClientRect().width <= offsetX) break;
+    }
+    caretHorizontalMovement("<=");
+    caretHorizontalMovement("+", steps);
+  } else {
+    caretHorizontalMovement("=>");
+  }
+  originateLines();
+  originateLineNumbers();
+  detectActiveLine();
+};

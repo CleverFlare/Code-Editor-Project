@@ -82,6 +82,11 @@ body {
   padding-inline: 5px;
   width: max-content;
   pointer-events: none;
+  -moz-user-select: -moz-none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 *[data-caret] {
@@ -94,6 +99,27 @@ body {
   visibility: visible;
   animation: blinking 1s steps(2, start) infinite;
   transform-origin: center center;
+}
+
+*[data-selection] {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  /* width: 17.6px; */
+  height: 25px;
+  background-color: rgba(88, 155, 255, 0.322);
+  border-radius: 1px;
+  pointer-events: none;
+  -moz-user-select: -moz-none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+*[data-code-wrapper] {
+  position: relative;
+  overflow: hidden;
 }
 
 @keyframes blinking {
